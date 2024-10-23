@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Certificate Generator</title>
+    <!-- Include external libraries -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.7.1/jszip.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
+    <style>
+        /* Reset and base styles */
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #f0f2f5, #c8d6e5);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        .container {
+            max-width: 900px;
+            margin: 40px auto;
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            animation: fadeIn 1s ease-in-out;
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 20px;
+            position: relative;
+            animation: slideDown 1s ease-in-out;
+        }
+        h1::after {
+            content: '';
+            width: 60px;
+            height: 4px;
+            background: #28a745;
+            display: block;
+            margin: 10px auto 0;
+            border-radius: 2px;
+        }
+        input[type="file"], button {
+            display: block;
+            margin: 20px auto;
+            font-size: 16px;
+        }
+        #canvas-container {
+            position: relative;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        #cert-canvas {
+            border: 2px dashed #ccc;
+            max-width: 100%;
+            border-radius: 8px;
+            transition: border-color 0.3s;
+        }
+        #cert-canvas:hover {
+            border-color: #28a745;
+        }
+        #instructions {
+            text-align: center;
+            color: #555;
+            margin-top: 10px;
+            font-style: italic;
+        }
+        button {
+            background: #28a745;
+            color: white;
+            border: none;
+            padding: 14px 24px;
+            font-size: 18px;
+            cursor: pointer;
+            border-radius: 8px;
+            transition: background 0.3s, transform 0.3s;
+        }
+        button:hover {
+            background: #218838;
+            transform: translateY(-2px);
+        }
+        #progress {
+            text-align: center;
+            color: #555;
+            margin-top: 10px;
+        }
+        /* Footer styles */
+        footer {
+            background: #333;
+            color: white;
+            padding: 20px 0;
+            text-align: center;
+            margin-top: auto;
+            position: relative;
+        }
+        footer a {
+            color: #28a745;
+            text-decoration: none;
+            font-weight: bold;
+        }
+        footer a:hover {
+            text-decoration: underline;
+        }
+        footer p {
+            margin: 5px 0;
+        }
+        /* Privacy policy modal */
+        #privacy-modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0; top: 0;
+            width: 100%; height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.7);
+        }
+        #privacy-content {
+            background-color: #fefefe;
+            margin: 10% auto;
+            padding: 30px;
+            border: 1px solid #888;
+            width: 80%;
+            max-width: 600px;
+            border-radius: 8px;
+            position: relative;
+        }
+        #privacy-content h2 {
+            margin-bottom: 20px;
+        }
+        #close-privacy {
+            color: #aaa;
+            position: absolute;
+            top: 10px; right: 20px;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        #close-privacy:hover,
+        #close-privacy:focus {
+            color: black;
+            text-decoration: none;
+            cursor: pointer;
+        }
+        /* Animations */
+        @keyframes fadeIn {
+            from {opacity: 0;}
+            to {opacity: 1;}
+        }
+        @keyframes slideDown {
+            from {transform: translateY(-20px); opacity: 0;}
+            to {transform: translateY(0); opacity: 1;}
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Certificate Generator</h1>
+        <input type="file" id="template-upload" accept="image/jpeg, image/png">
+        <div id="canvas-container">
+            <canvas id="cert-canvas"></canvas>
+        </div>
+        <div id="instructions">Click on the certificate to set where the name will appear.</div>
+        <input type="file" id="names-upload" accept=".csv">
+        <button id="generate-btn">Generate Certificates</button>
+        <div id="progress"></div>
+    </div>
+
+    <footer>
+        <p>&copy; <span id="current-year"></span> All rights reserved.</p>
+        <p>
+            Created by <a href="https://chethan-4255.github.io/Portfolio/" target="_blank">Chethan Vasthaw Tippani</a>
+        </p>
+        <p><a href="#" id="privacy-link">Privacy Policy</a></p>
+    </footer>
+
+    <div id="privacy-modal">
+        <div id="privacy-content">
+            <span id="close-privacy">&times;</span>
+            <h2>Privacy Policy</h2>
+            <p>Your privacy is important to us. We only process the data you provide to generate certificates and do not store any personal information.</p>
+            <p>All processing is done locally on your machine, and no data is transmitted over the internet.</p>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('current-year').textContent = new Date().getFullYear();
+
+        const privacyModal = document.getElementById('privacy-modal');
+        const privacyLink = document.getElementById('privacy-link');
+        const closePrivacy = document.getElementById('close-privacy');
+
+        privacyLink.onclick = function() {
+            privacyModal.style.display = "block";
+        }
+        closePrivacy.onclick = function() {
+            privacyModal.style.display = "none";
+        }
+        window.onclick = function(event) {
+            if (event.target == privacyModal) {
+                privacyModal.style.display = "none";
+            }
+        }
+
+        const canvas = document.getElementById('cert-canvas');
+        const ctx = canvas.getContext('2d');
+        let templateImage = new Image();
+        let markerPosition = null;
+        let names = [];
+
+        document.getElementById('template-upload').addEventListener('change', function(e) {
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                templateImage.onload = function() {
+                    canvas.width = templateImage.width;
+                    canvas.height = templateImage.height;
+                    ctx.drawImage(templateImage, 0, 0);
+                }
+                templateImage.src = event.target.result;
+            }
+            reader.readAsDataURL(e.target.files[0]);
+        });
+
+        canvas.addEventListener('click', function(e) {
+            const rect = canvas.getBoundingClientRect();
+            markerPosition = {
+                x: (e.clientX - rect.left) * (canvas.width / rect.width),
+                y: (e.clientY - rect.top) * (canvas.height / rect.height)
+            };
+            redrawCanvas();
+            drawMarker();
+        });
+
+        function redrawCanvas() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(templateImage, 0, 0);
+        }
+
+        function drawMarker() {
+            if (markerPosition) {
+                ctx.fillStyle = 'rgba(255, 0, 0, 0.6)';
+                ctx.beginPath();
+                ctx.arc(markerPosition.x, markerPosition.y, 10, 0, 2 * Math.PI);
+                ctx.fill();
+            }
+        }
+
+        document.getElementById('names-upload').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            Papa.parse(file, {
+                complete: function(results) {
+                    names = results.data.flat().filter(name => name.trim() !== '');
+                    alert(`${names.length} names loaded successfully.`);
+                }
+            });
+        });
+
+        document.getElementById('generate-btn').addEventListener('click', function() {
+            if (!templateImage.src) {
+                alert('Please upload a certificate template.');
+                return;
+            }
+            if (!markerPosition) {
+                alert('Please click on the certificate to set the name position.');
+                return;
+            }
+            if (names.length === 0) {
+                alert('Please upload a CSV file with names.');
+                return;
+            }
+            generateCertificates();
+        });
+
+        async function generateCertificates() {
+            const zip = new JSZip();
+            const progressDiv = document.getElementById('progress');
+            progressDiv.textContent = 'Generating certificates...';
+
+            for (let i = 0; i < names.length; i++) {
+                redrawCanvas();
+
+                ctx.font = 'bold 48px "Segoe UI", Tahoma, Geneva, Verdana, sans-serif';
+                ctx.fillStyle = '#333';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+
+                ctx.fillText(names[i], markerPosition.x, markerPosition.y);
+
+                const dataUrl = canvas.toDataURL('image/jpeg');
+                const blob = await (await fetch(dataUrl)).blob();
+                zip.file(`${names[i]}.jpg`, blob);
+
+                progressDiv.textContent = `Generated ${i + 1} of ${names.length} certificates.`;
+            }
+
+            zip.generateAsync({ type: 'blob' }).then(function(content) {
+                saveAs(content, 'certificates.zip');
+                progressDiv.textContent = 'All certificates have been generated!';
+            });
+        }
+    </script>
+</body>
+</html>
